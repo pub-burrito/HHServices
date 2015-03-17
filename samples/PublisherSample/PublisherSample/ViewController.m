@@ -10,7 +10,8 @@
 
 
 @implementation ViewController {
-    HHServicePublisher* publisher;
+    HHServicePublisher* publisherRAOP;
+    HHServicePublisher* publisherAirPlay;
 }
 
 
@@ -18,12 +19,44 @@
 
 - (id) init {
     if( self = [super init] ) {
-        NSUInteger serverPort = 12345;
-        
         // Setup the service publisher - remember to update the type parameter with your actual service type
-        publisher = [[HHServicePublisher alloc] initWithName:@"MyDisplayName"
-                                                        type:@"_myexampleservice._tcp." domain:@"local." txtData:nil port:serverPort];
-        publisher.delegate = self;
+        publisherRAOP = [[HHServicePublisher alloc] initWithName:@"5855CA1AE288@test"
+                                                        type:@"_raop._tcp."
+                                                      domain:@"local."
+                                                        host:@"some-host.local."
+                                                          ip:@"192.168.2.165"
+                                                     txtData:[@{
+                                                              @"txtvers": @"1",
+                                                              @"ch": @"2",
+                                                              @"cn": @"0,1,2,3",
+                                                              @"da": @"true",
+                                                              @"et": @"0,3,5",
+                                                              @"md": @"0,1,2",
+                                                              @"pw": @"false",
+                                                              @"sv": @"false",
+                                                              @"sr": @"44100",
+                                                              @"ss": @"16",
+                                                              @"tp": @"UDP",
+                                                              @"vn": @"65537",
+                                                              @"vs": @"150.33",
+                                                              @"am": @"AppleTV3,1",
+                                                              @"sf": @"0x4"
+                                                              } dataFromTXTRecordDictionary]
+                                                        port:47000];
+        
+        publisherAirPlay = [[HHServicePublisher alloc] initWithName:@"test"
+                                                        type:@"_airplay._tcp."
+                                                      domain:@"local."
+                                                        host:@"some-host.local."
+                                                          ip:@"192.168.2.165"
+                                                     txtData:[@{
+                                                             @"deviceid": @"58:55:CA:1A:E2:88",
+                                                             @"features": @"0x100029ff",
+                                                             @"model": @"AppleTV3,1",
+                                                             @"srcvers": @"150.33"
+                                                             } dataFromTXTRecordDictionary]
+                                                        port:7000];
+        publisherRAOP.delegate = self;
     }
     return self;
 }
@@ -52,11 +85,13 @@
 #pragma mark - Actions
 
 - (void) beginPublish {
-    [publisher beginPublish];
+    [publisherRAOP beginPublish];
+    [publisherAirPlay beginPublish];
 }
 
 - (void) endPublish {
-    [publisher endPublish];
+    [publisherRAOP endPublish];
+    [publisherAirPlay endPublish];
 }
 
 

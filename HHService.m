@@ -318,7 +318,7 @@ static void resolveCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t
 		[addressesAsStrings addObject:[NSString stringWithFormat:@"%@:%d", @(inet_ntoa(sin->sin_addr)), ntohs(sin->sin_port)]];
     }
     return [NSString stringWithFormat:@"HHService[0x%08X, %@, %@, %@, %@, %@, %d]", (unsigned int)self,
-            self.name, self.type, self.domain, self.resolvedHostName, addressesAsStrings, txtData.length];
+            self.name, self.type, self.domain, self.resolvedHostName, addressesAsStrings, (unsigned int)txtData.length];
 }
 
 

@@ -27,12 +27,14 @@
 @property (nonatomic, retain, readonly) NSString* name;
 @property (nonatomic, retain, readonly) NSString* type;
 @property (nonatomic, retain, readonly) NSString* domain;
+@property (nonatomic, retain, readonly) NSString* host;
+@property (nonatomic, retain, readonly) NSString* ip;
 
 @property (nonatomic, retain) NSData* txtData;
 
 
-- (id) initWithName:(NSString*)name type:(NSString*)type domain:(NSString*)domain txtData:(NSData*)txtData port:(NSUInteger)port;
-- (id) initWithName:(NSString*)name type:(NSString*)type domain:(NSString*)domain txtData:(NSData*)txtData port:(NSUInteger)port includeP2P:(BOOL)includeP2P;
+- (id) initWithName:(NSString*)name type:(NSString*)type domain:(NSString*)domain host:(NSString*)svcHost ip:(NSString*)svcIP txtData:(NSData*)txtData port:(NSUInteger)port;
+- (id) initWithName:(NSString*)name type:(NSString*)type domain:(NSString*)domain host:(NSString*)svcHost ip:(NSString*)svcIP txtData:(NSData*)txtData port:(NSUInteger)port includeP2P:(BOOL)includeP2P;
 
 - (BOOL) beginPublish;
 - (void) endPublish;

@@ -100,6 +100,8 @@
 }
 
 - (void) serviceBrowser:(HHServiceBrowser*)serviceBrowser didFindService:(HHService*)service moreComing:(BOOL)moreComing {
+    NSLog(@"Found service: %@", service);
+    
     if( ![browseResult containsObject:service] ) {
         [browseResult addObject:service];
         [tableView reloadData];

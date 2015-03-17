@@ -9,6 +9,8 @@
 #import "HHServicePublisher.h"
 
 #import "HHServiceSupport+Private.h"
+#include <netdb.h>
+#include <arpa/inet.h>
 
 @interface HHServicePublisher ()
 
@@ -16,6 +18,8 @@
 @property (nonatomic, retain, readwrite) NSString* name;
 @property (nonatomic, retain, readwrite) NSString* type;
 @property (nonatomic, retain, readwrite) NSString* domain;
+@property (nonatomic, retain, readwrite) NSString* host;
+@property (nonatomic, retain, readwrite) NSString* ip;
 @property (nonatomic) NSUInteger port;
 @property (nonatomic) BOOL includeP2P;
 
@@ -43,6 +47,7 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
                 [newName release];
             });
         } else {
+            NSLog(@"RegType: %s", regType);
             [servicePublisher dnsServiceError:errorCode];
         }
     }
@@ -50,6 +55,10 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
     [contextWrapper releaseContext];
 }
 
+static void registerRecordCallBack(DNSServiceRef sdRef, DNSRecordRef rec, DNSServiceFlags flags, DNSServiceErrorType errorCode,
+                       void *context) {
+    registerServiceCallBack(sdRef, flags, errorCode, nil, "record", nil, context);
+}
 
 #pragma mark -
 #pragma mark HHServicePublisher
@@ -57,7 +66,7 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
 
 @implementation HHServicePublisher
 
-@synthesize name, type, domain, txtData, port, includeP2P;
+@synthesize name, type, domain, host, ip, txtData, port, includeP2P;
 @synthesize delegate;
 
 
@@ -85,15 +94,17 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
 #pragma mark Creation and destruction
 
 
-- (id) initWithName:(NSString*)svcName type:(NSString*)svcType domain:(NSString*)svcDomain txtData:(NSData*)svcTxtData port:(NSUInteger)svcPort {
-    return [self initWithName:svcName type:svcType domain:svcDomain txtData:svcTxtData port:svcPort includeP2P:YES];
+- (id) initWithName:(NSString*)svcName type:(NSString*)svcType domain:(NSString*)svcDomain host:(NSString*)svcHost ip:(NSString*)svcIP txtData:(NSData*)svcTxtData port:(NSUInteger)svcPort {
+    return [self initWithName:svcName type:svcType domain:svcDomain host:svcHost ip:svcIP txtData:svcTxtData port:svcPort includeP2P:YES];
 }
 
-- (id) initWithName:(NSString*)svcName type:(NSString*)svcType domain:(NSString*)svcDomain txtData:(NSData*)svcTxtData port:(NSUInteger)svcPort includeP2P:(BOOL)svcIncludeP2P {
+- (id) initWithName:(NSString*)svcName type:(NSString*)svcType domain:(NSString*)svcDomain host:(NSString*)svcHost ip:(NSString*)svcIP txtData:(NSData*)svcTxtData port:(NSUInteger)svcPort includeP2P:(BOOL)svcIncludeP2P {
     if( (self = [super init]) ) {
         self.name = svcName;
         self.type = svcType;
         self.domain = svcDomain;
+        self.host = svcHost;
+        self.ip = svcIP;
         self.txtData = svcTxtData;
         self.port = svcPort;
         self.includeP2P = svcIncludeP2P;
@@ -105,6 +116,8 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
     self.name = nil;
     self.type = nil;
     self.domain = nil;
+    self.host = nil;
+    self.ip = nil;
     self.txtData = nil;
     
     [super dealloc];
@@ -119,19 +132,79 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
     const char* _name = [self.name cStringUsingEncoding:NSUTF8StringEncoding];
     const char* _type = [self.type cStringUsingEncoding:NSUTF8StringEncoding];
     const char* _domain = [self.domain cStringUsingEncoding:NSUTF8StringEncoding];
+    const char* _host = [self.host cStringUsingEncoding:NSUTF8StringEncoding];
+    const char* _ip = [self.ip cStringUsingEncoding:NSUTF8StringEncoding];
     const void* _txtData = [self.txtData bytes];
     uint16_t _txtLen = (uint16_t)self.txtData.length;
 
     uint16_t bigEndianPort = NSSwapHostShortToBig((uint16_t)port);
 
     DNSServiceFlags flags = 0;
+
 #if TARGET_OS_IPHONE == 1
     flags = (uint32_t)(includeP2P ? kDNSServiceFlagsIncludeP2P : 0);
 #endif
+    
+    DNSServiceRef registerRef = NULL;
+    DNSServiceErrorType err;
 
-    DNSServiceRef registerRef;
-    DNSServiceErrorType err = DNSServiceRegister(&registerRef, flags, kDNSServiceInterfaceIndexAny, _name, _type, _domain, NULL,
-                                        bigEndianPort, _txtLen, _txtData, registerServiceCallBack, [self setCurrentCallbackContextWithSelf]);
+    err = DNSServiceRegister(
+                &registerRef,
+                flags,
+                kDNSServiceInterfaceIndexAny,
+                _name,
+                _type,
+                _domain,
+                _host,
+                bigEndianPort,
+                _txtLen,
+                _txtData,
+                registerServiceCallBack,
+                [self setCurrentCallbackContextWithSelf]
+          );
+    
+    DNSServiceRef svcRef = NULL;
+    DNSRecordRef recordRef = NULL;
+    uint32_t addr = getip(_ip);
+    
+    if( err == kDNSServiceErr_NoError ) {
+        NSLog(@"Host: %s, IP Address: %u", _host, addr);
+        
+        bool reconnect = true;
+
+        if (reconnect) {
+            DNSServiceCreateConnection(&svcRef);
+        
+            err = DNSServiceRegisterRecord(
+                            svcRef,
+                            &recordRef,
+                            kDNSServiceFlagsShared,
+                            kDNSServiceInterfaceIndexAny,
+                            _host,
+                            kDNSServiceType_A,
+                            kDNSServiceClass_IN,
+                            sizeof(addr),
+                            &addr,
+                            0, //ttl
+                            registerRecordCallBack,
+                            [self setCurrentCallbackContextWithSelf]
+                  );
+            
+            DNSServiceProcessResult(registerRef);
+            
+        } else {
+            
+            err = DNSServiceAddRecord(
+                                      registerRef,
+                                      &recordRef,
+                                      kDNSServiceFlagsShared,
+                                      kDNSServiceType_A,
+                                      sizeof(addr),
+                                      &addr,
+                                      0 //ttl
+                  );
+        }
+    }
     
     if( err == kDNSServiceErr_NoError ) {
         return [super setServiceRef:registerRef];
@@ -139,6 +212,25 @@ static void registerServiceCallBack(DNSServiceRef sdRef, DNSServiceFlags flags, 
         [self dnsServiceError:err];
         return NO;
     }
+}
+
+uint32_t getip(const char *const name) {
+    uint32_t ip = 0;
+    struct addrinfo hints;
+    struct addrinfo *addrs = NULL;
+    
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    
+    if (getaddrinfo(name, NULL, &hints, &addrs) == 0) {
+        ip = ((struct sockaddr_in*) addrs->ai_addr)->sin_addr.s_addr;
+    }
+    
+    if (addrs) {
+        freeaddrinfo(addrs);
+    }
+    
+    return ip;
 }
 
 - (void) endPublish {
